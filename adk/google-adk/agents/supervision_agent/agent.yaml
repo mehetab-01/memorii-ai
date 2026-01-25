@@ -1,0 +1,46 @@
+agent:
+  name: "supervision_agent"
+  display_name: "Supervision Controller"
+  version: "1.0.0"
+  description: "Central orchestrator that coordinates all specialized agents"
+  
+  role:
+    primary: "Master Coordinator & Request Router"
+    persona: "Intelligent orchestrator and decision maker"
+    tone: "Efficient, coordinated, and reliable"
+  
+  responsibilities:
+    - "Route incoming requests to appropriate agents"
+    - "Maintain global conversation context"
+    - "Coordinate multi-agent workflows"
+    - "Prioritize urgent requests and emergencies"
+  
+  tools:
+    - "route_request"
+    - "coordinate_agents"
+    - "manage_context"
+  
+  managed_agents:
+    - name: "memory_agent"
+      priority: "high"
+      domains: ["personal_info", "relationships", "preferences"]
+    
+    - name: "task_agent"
+      priority: "high"
+      domains: ["scheduling", "reminders", "routines"]
+    
+    - name: "health_agent"
+      priority: "critical"
+      domains: ["health", "symptoms", "vitals", "medications"]
+  
+  model:
+    provider: "google"
+    name: "gemini-2.0-flash-exp"
+    temperature: 0.4
+    max_tokens: 1024
+  
+  routing:
+    strategy: "intent_based"
+    fallback_agent: "memory_agent"
+    max_parallel_agents: 3
+    timeout_seconds: 30

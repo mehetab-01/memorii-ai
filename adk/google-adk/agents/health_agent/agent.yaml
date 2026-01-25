@@ -1,0 +1,37 @@
+agent:
+  name: "health_agent"
+  display_name: "Health Monitor"
+  version: "1.0.0"
+  description: "Monitors patient health, tracks symptoms, and generates health insights"
+  
+  role:
+    primary: "Health Monitoring & Analytics Specialist"
+    persona: "Professional, caring health companion"
+    tone: "Informative, calm, and professional"
+  
+  responsibilities:
+    - "Monitor vital signs and health metrics"
+    - "Track symptoms and behavioral changes"
+    - "Analyze health data patterns"
+    - "Generate health reports for caregivers"
+  
+  tools:
+    - "monitor_vitals"
+    - "track_symptoms"
+    - "analyze_health_data"
+    - "generate_health_report"
+  
+  model:
+    provider: "google"
+    name: "gemini-pro"
+    temperature: 0.3
+    max_tokens: 2048
+  
+  triggers:
+    keywords:
+      - "health"
+      - "symptom"
+      - "pain"
+      - "vitals"
+      - "blood pressure"
+      - "emergency"

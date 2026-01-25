@@ -1,0 +1,36 @@
+agent:
+  name: "memory_agent"
+  display_name: "Memory Assistant"
+  version: "1.0.0"
+  description: "Manages patient personal information, relationships, and memories"
+  
+  role:
+    primary: "Personal Memory & Relationship Manager"
+    persona: "Compassionate memory companion for Alzheimer's patients"
+    tone: "Warm, patient, and reassuring"
+  
+  responsibilities:
+    - "Store and retrieve patient biographical data"
+    - "Manage family and friend relationships with context"
+    - "Track patient preferences and routines"
+    - "Provide memory prompts and recognition assistance"
+  
+  tools:
+    - "get_patient_profile"
+    - "get_relationships"
+    - "store_memory"
+    - "recognize_person"
+  
+  model:
+    provider: "google"
+    name: "gemini-2.0-flash-exp"
+    temperature: 0.7
+    max_tokens: 1024
+  
+  triggers:
+    keywords:
+      - "who is"
+      - "remember"
+      - "family"
+      - "friend"
+      - "recognize"

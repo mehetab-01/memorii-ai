@@ -1,0 +1,26 @@
+C:\Users\almeh\OneDrive\Desktop\memmori-soha\MemoriiAI\adk\google-adk\api\routes.py:24: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  import google.generativeai as genai
+INFO:     Started server process [18588]
+INFO:     Waiting for application startup.
+2026-01-25 07:47:22,048 - api.main - INFO - Starting Memoral ADK Service...
+2026-01-25 07:47:22,048 - api.main - INFO - Environment: development
+2026-01-25 07:47:22,048 - api.main - INFO - Backend API URL: http://localhost:8000
+2026-01-25 07:47:22,048 - api.main - INFO - Google API key configured
+2026-01-25 07:47:22,048 - api.main - INFO - Initializing WebSocket connection to backend...
+2026-01-25 07:47:22,048 - websocket_client - INFO - [ADK WebSocket] Connecting to http://localhost:8000
+2026-01-25 07:47:22,053 - websocket_client - INFO - [ADK WebSocket] Connected to backend
+2026-01-25 07:47:22,054 - api.main - INFO - WebSocket connection established - real-time updates enabled
+INFO:     Application startup complete.
+ERROR:    [Errno 10048] error while attempting to bind on address ('0.0.0.0', 5000): [winerror 10048] only one usage of each socket address (protocol/network address/port) is normally permitted
+INFO:     Waiting for application shutdown.
+2026-01-25 07:47:22,055 - api.main - INFO - Shutting down Memoral ADK Service...
+2026-01-25 07:47:22,055 - websocket_client - INFO - [ADK WebSocket] Disconnected from backend
+2026-01-25 07:47:22,056 - websocket_client - INFO - [ADK WebSocket] Disconnected
+INFO:     Application shutdown complete.
