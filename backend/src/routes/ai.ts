@@ -9,7 +9,8 @@ import {
   handleAnalyzeRequest,
   handleOptimizeReminder,
   checkADKHealth,
-  getAgentsStatus
+  getAgentsStatus,
+  handleVoiceMessage,
 } from '../controllers/aiController';
 
 const router = Router();
@@ -34,6 +35,9 @@ const router = Router();
  * }
  */
 router.post('/chat', handleChatMessage);
+
+// POST /api/ai/voice - Patient app voice assistant (Claude primary, Gemini fallback)
+router.post('/voice', handleVoiceMessage);
 
 /**
  * POST /api/ai/analyze

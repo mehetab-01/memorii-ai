@@ -126,12 +126,6 @@ class ADKClient {
    * Send a chat message to the ADK service
    */
   async chat(patientId: string | undefined, message: string, conversationHistory?: any[]): Promise<ChatResponse> {
-    if (patientId) {
-      console.log(`[ADK Client] Chat request for patient ${patientId}`);
-    } else {
-      console.log(`[ADK Client] General chat request`);
-    }
-
     const request: ChatRequest = {
       patientId,
       message,
@@ -139,8 +133,6 @@ class ADKClient {
     };
 
     const response = await this.post<ChatResponse>('/api/chat', request);
-    console.log(`[ADK Client] Chat response from ${response.agent} agent`);
-
     return response;
   }
 
@@ -148,8 +140,6 @@ class ADKClient {
    * Request patient behavior analysis
    */
   async analyze(patientId: string, conversations?: any[], timeframe: '7days' | '30days' = '7days'): Promise<AnalysisResponse> {
-    console.log(`[ADK Client] Analysis request for patient ${patientId}, timeframe: ${timeframe}`);
-
     const request: AnalysisRequest = {
       patientId,
       conversations,
@@ -157,8 +147,6 @@ class ADKClient {
     };
 
     const response = await this.post<AnalysisResponse>('/api/analyze', request);
-    console.log(`[ADK Client] Analysis complete, confusion score: ${response.confusionScore}`);
-
     return response;
   }
 
@@ -170,8 +158,6 @@ class ADKClient {
     reminderType: 'medication' | 'meal' | 'activity',
     currentSchedule: string
   ): Promise<ReminderOptimizationResponse> {
-    console.log(`[ADK Client] Optimize reminder for patient ${patientId}, type: ${reminderType}`);
-
     const request: ReminderOptimizationRequest = {
       patientId,
       reminderType,
@@ -179,8 +165,6 @@ class ADKClient {
     };
 
     const response = await this.post<ReminderOptimizationResponse>('/api/optimize-reminder', request);
-    console.log(`[ADK Client] Suggested time: ${response.suggestedTime}`);
-
     return response;
   }
 
@@ -188,12 +172,10 @@ class ADKClient {
    * Check ADK service health
    */
   async healthCheck(): Promise<ADKHealthResponse> {
-    console.log('[ADK Client] Health check');
-
     try {
       const response = await this.get<ADKHealthResponse>('/health');
       return response;
-    } catch (error) {
+    } catch {
       return {
         status: 'unhealthy',
         timestamp: new Date().toISOString()
@@ -205,7 +187,6 @@ class ADKClient {
    * Get status of all AI agents
    */
   async getAgentsStatus(): Promise<AgentsStatusResponse> {
-    console.log('[ADK Client] Getting agents status');
     return await this.get<AgentsStatusResponse>('/api/agents/status');
   }
 

@@ -42,6 +42,7 @@ import {
   type DailyRoutine,
   type Appointment,
 } from '@/lib/api';
+import { Slider } from '@/components/ui/slider';
 
 interface PatientDetailModalProps {
   open: boolean;
@@ -69,6 +70,8 @@ export default function PatientDetailModal({
   const [editDiagnosis, setEditDiagnosis] = useState(patient.diagnosis);
   const [editLocation, setEditLocation] = useState(patient.location);
   const [editSafetyStatus, setEditSafetyStatus] = useState(patient.safety_status);
+  const [editGeofenceRadius, setEditGeofenceRadius] = useState(patient.geofence_radius ?? 250);
+  const [editEmergencyContact, setEditEmergencyContact] = useState(patient.emergency_contact ?? '');
 
   // New note state
   const [newNote, setNewNote] = useState('');
@@ -100,13 +103,17 @@ export default function PatientDetailModal({
 
   const handleUpdatePatient = async () => {
     try {
-      await patientApi.update(patient.id, {
-        name: editName,
-        age: parseInt(editAge),
-        diagnosis: editDiagnosis,
-        location: editLocation,
-        safety_status: editSafetyStatus,
-      });
+      await Promise.all([
+        patientApi.update(patient.id, {
+          name: editName,
+          age: parseInt(editAge),
+          diagnosis: editDiagnosis,
+          location: editLocation,
+          safety_status: editSafetyStatus,
+        }),
+        patientApi.updateGeofenceRadius(patient.id, editGeofenceRadius),
+        patientApi.updateEmergencyContact(patient.id, editEmergencyContact.trim() || null),
+      ]);
       setIsEditing(false);
       onUpdate?.();
     } catch (error) {
@@ -262,6 +269,38 @@ export default function PatientDetailModal({
                     </Select>
                   </div>
                 </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Shield size={14} />
+                    Emergency Contact Number
+                  </Label>
+                  <Input
+                    value={editEmergencyContact}
+                    onChange={(e) => setEditEmergencyContact(e.target.value)}
+                    placeholder="+919876543210 (international format)"
+                    className="bg-white font-mono"
+                  />
+                  <p className="text-xs text-gray-400">Must start with country code, e.g. +91... or +1... — used for SOS alerts</p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <MapPin size={14} />
+                    Safe Zone Radius: <span className="font-semibold text-purple-700">{editGeofenceRadius}m</span>
+                  </Label>
+                  <Slider
+                    min={50}
+                    max={1000}
+                    step={25}
+                    value={[editGeofenceRadius]}
+                    onValueChange={([v]) => setEditGeofenceRadius(v)}
+                    className="w-full"
+                  />
+                  <div className="flex justify-between text-xs text-gray-400">
+                    <span>50m (tight)</span>
+                    <span>500m</span>
+                    <span>1000m (wide)</span>
+                  </div>
+                </div>
                 <div className="flex justify-end gap-2 pt-4">
                   <Button variant="outline" onClick={() => setIsEditing(false)}>
                     Cancel
@@ -299,6 +338,16 @@ export default function PatientDetailModal({
                         <MapPin size={14} />
                         {patient.location}
                       </span>
+                      <span className="flex items-center gap-1 text-purple-600 font-medium">
+                        <MapPin size={14} />
+                        Safe zone: {patient.geofence_radius ?? 250}m
+                      </span>
+                      {patient.emergency_contact && (
+                        <span className="flex items-center gap-1 text-red-600 font-medium">
+                          <Shield size={14} />
+                          SOS: {patient.emergency_contact}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>

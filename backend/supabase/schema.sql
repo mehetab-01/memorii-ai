@@ -13,6 +13,8 @@ CREATE TABLE patients (
   location VARCHAR(255) DEFAULT 'At home',
   last_checkin TIMESTAMP DEFAULT NOW(),
   safety_status VARCHAR(50) DEFAULT 'safe',
+  geofence_radius INTEGER NOT NULL DEFAULT 250,
+  emergency_contact VARCHAR(20),
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );

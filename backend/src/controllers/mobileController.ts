@@ -227,6 +227,8 @@ export const getPatientProfile = async (req: Request, res: Response): Promise<vo
       location: patient.location,
       photo_url: patient.photo_url,
       safety_status: patient.safety_status,
+      geofence_radius: patient.geofence_radius ?? 250,
+      emergency_contact: patient.emergency_contact ?? null,
       medications: medications || [],
     });
   } catch (err) {
@@ -246,7 +248,7 @@ export const getPatientDailyStats = async (req: Request, res: Response): Promise
     const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
 
     // Count completed medication reminders for today
-    const { data: completedMeds, error: medsError } = await supabase
+    const { data: completedMeds } = await supabase
       .from('reminders')
       .select('id')
       .eq('patient_id', patientId)
@@ -256,7 +258,7 @@ export const getPatientDailyStats = async (req: Request, res: Response): Promise
       .lte('completed_at', endOfDay.toISOString());
 
     // Count total medication reminders for today
-    const { data: totalMeds, error: totalMedsError } = await supabase
+    const { data: totalMeds } = await supabase
       .from('reminders')
       .select('id')
       .eq('patient_id', patientId)

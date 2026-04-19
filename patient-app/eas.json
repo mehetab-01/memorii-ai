@@ -12,11 +12,14 @@
       }
     },
     "preview": {
-      "distribution": "internal",
-      "android": {
-        "buildType": "apk"
-      }
-    },
+  "distribution": "internal",
+  "android": {
+    "buildType": "apk"
+  },
+  "env": {
+    "NPM_FLAGS": "--legacy-peer-deps"
+  }
+},
     "production": {
       "android": {
         "buildType": "apk"

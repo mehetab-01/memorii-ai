@@ -191,7 +191,6 @@ export const createAlert = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    console.log(`[Alert] Created ${priority} alert for patient ${alertData.patient_id}: ${alertData.alert_type}`);
 
     res.status(201).json(data);
   } catch (err) {
@@ -237,7 +236,6 @@ export const acknowledgeAlert = async (req: Request, res: Response): Promise<voi
       return;
     }
 
-    console.log(`[Alert] Acknowledged alert ${id}`);
 
     res.json(data);
   } catch (err) {

@@ -7,6 +7,8 @@ export interface Patient {
   location: string;
   last_checkin: string;
   safety_status: 'safe' | 'warning' | 'danger';
+  geofence_radius: number;
+  emergency_contact: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -41,4 +43,6 @@ export interface UpdatePatientInput {
   location?: string;
   last_checkin?: string;
   safety_status?: 'safe' | 'warning' | 'danger';
+  geofence_radius?: number;
+  emergency_contact?: string | null;
 }

@@ -8,6 +8,214 @@ import { adkClient, ADKServiceError } from '../services/adkClient';
 import supabase from '../config/supabase';
 import { broadcaster } from '../websocket/broadcaster';
 
+// ── Session-based conversation history ───────────────────────────────────────
+const SESSION_TTL = 30 * 60 * 1000; // 30 minutes
+interface SessionEntry {
+  history: Array<{ role: 'user' | 'assistant'; content: string }>;
+  lastUsed: number;
+}
+const voiceSessions = new Map<string, SessionEntry>();
+
+function getSessionHistory(sessionId: string): Array<{ role: 'user' | 'assistant'; content: string }> {
+  const entry = voiceSessions.get(sessionId);
+  if (!entry || Date.now() - entry.lastUsed > SESSION_TTL) {
+    voiceSessions.delete(sessionId);
+    return [];
+  }
+  return entry.history;
+}
+
+function appendToSession(sessionId: string, role: 'user' | 'assistant', content: string): void {
+  const entry = voiceSessions.get(sessionId) || { history: [], lastUsed: 0 };
+  entry.history.push({ role, content });
+  // Keep last 20 messages (10 exchanges)
+  if (entry.history.length > 20) entry.history.splice(0, entry.history.length - 20);
+  entry.lastUsed = Date.now();
+  voiceSessions.set(sessionId, entry);
+}
+
+// ── Voice assistant system prompt for Memorii ────────────────────────────────
+function buildSystemPrompt(patientName: string): string {
+  const now = new Date();
+  return `You are Memorii, a warm and caring AI companion for ${patientName}, who has Alzheimer's disease.
+Today is ${now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.
+The current time is ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}.
+
+Guidelines:
+- Keep responses SHORT — 1 to 2 sentences maximum. They will be spoken aloud.
+- Be warm, gentle, and reassuring at all times.
+- Use simple, clear language — no jargon or complex words.
+- Address ${patientName} by name occasionally.
+- If asked about family, remind them they are loved.
+- If asked about time or date, give the current information.
+- If they seem confused or distressed, be extra gentle and calming.
+- Never say you are an AI model — just be Memorii, their companion.`;
+}
+
+// ── Call Claude API ──────────────────────────────────────────────────────────
+async function callClaudeAPI(
+  message: string,
+  patientName: string,
+  history: Array<{ role: 'user' | 'assistant'; content: string }>
+): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured');
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+  const messages = [...history, { role: 'user' as const, content: message }];
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 150,
+        system: buildSystemPrompt(patientName),
+        messages,
+      }),
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`Claude API ${response.status}: ${err}`);
+    }
+
+    const data = await response.json() as any;
+    const text = data.content?.[0]?.text;
+    if (!text) throw new Error('Empty Claude response');
+    return text.trim();
+  } catch (err) {
+    clearTimeout(timeoutId);
+    throw err;
+  }
+}
+
+// ── Call Gemini API (fallback) ───────────────────────────────────────────────
+async function callGeminiAPI(
+  message: string,
+  patientName: string,
+  history: Array<{ role: 'user' | 'assistant'; content: string }>
+): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+  const systemPrompt = buildSystemPrompt(patientName);
+  // Build Gemini contents from history + current message
+  const contents = [
+    ...history.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
+    { role: 'user', parts: [{ text: message }] },
+  ];
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          contents,
+          generationConfig: { temperature: 0.7, maxOutputTokens: 150, topP: 0.9 },
+        }),
+      }
+    );
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) throw new Error(`Gemini API ${response.status}`);
+
+    const data = await response.json() as any;
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) throw new Error('Empty Gemini response');
+    return text.trim();
+  } catch (err) {
+    clearTimeout(timeoutId);
+    throw err;
+  }
+}
+
+/**
+ * POST /api/ai/voice
+ * Voice assistant endpoint for the patient mobile app.
+ * Tries Claude (Haiku) first, falls back to Gemini, then local keyword response.
+ */
+export const handleVoiceMessage = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { message, patientName = 'friend', sessionId } = req.body;
+
+    if (!message || typeof message !== 'string' || message.trim() === '') {
+      res.status(400).json({ error: 'Bad Request', message: 'message is required' });
+      return;
+    }
+
+    const query = message.trim();
+    const sid = sessionId || `anon_${Date.now()}`;
+    const history = getSessionHistory(sid);
+
+    let response: string;
+    let provider: string;
+
+    // 1. Try Claude (Haiku — cheapest, fast, with conversation history)
+    try {
+      response = await callClaudeAPI(query, patientName, history);
+      provider = 'claude-haiku';
+    } catch (claudeErr: any) {
+      console.warn('[Voice] Claude failed, trying Gemini:', claudeErr.message);
+
+      // 2. Fall back to Gemini (with conversation history)
+      try {
+        response = await callGeminiAPI(query, patientName, history);
+        provider = 'gemini-flash';
+      } catch (geminiErr: any) {
+        console.warn('[Voice] Gemini failed, using local fallback:', geminiErr.message);
+
+        // 3. Local keyword fallback (no API)
+        const now = new Date();
+        const lower = query.toLowerCase();
+        if (lower.includes('day') || lower.includes('date') || lower.includes('today')) {
+          response = `Today is ${now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}. You're doing wonderfully, ${patientName}!`;
+        } else if (lower.includes('time')) {
+          response = `It's ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })} right now.`;
+        } else if (lower.includes('who am i') || lower.includes('my name')) {
+          response = `You are ${patientName}. You are safe and loved!`;
+        } else if (lower.includes('family') || lower.includes('loved')) {
+          response = `Your family loves you very much, ${patientName}. You can see them in the Loved Ones section.`;
+        } else if (lower.includes('medication') || lower.includes('medicine') || lower.includes('pill')) {
+          response = `Check your Today's Schedule for medication times. I'll remind you when it's time!`;
+        } else if (lower.includes('help') || lower.includes('emergency')) {
+          response = `Hold the red emergency button if you need urgent help. Your caretaker will be notified right away.`;
+        } else {
+          response = `I'm here with you, ${patientName}. How can I help you feel better today?`;
+        }
+        provider = 'local';
+      }
+    }
+
+    // Persist exchange to session
+    appendToSession(sid, 'user', query);
+    appendToSession(sid, 'assistant', response);
+
+    res.json({ response, provider, sessionId: sid });
+  } catch (err) {
+    console.error('[Voice] Unexpected error:', err);
+    res.status(500).json({ error: 'Internal Server Error', message: 'Voice assistant unavailable' });
+  }
+};
+
 /**
  * POST /api/ai/chat
  * Handle patient chat messages
@@ -25,11 +233,6 @@ export const handleChatMessage = async (req: Request, res: Response): Promise<vo
       return;
     }
 
-    if (patientId) {
-      console.log(`[AI Controller] Chat request for patient ${patientId}`);
-    } else {
-      console.log(`[AI Controller] General chat request (no patient specified)`);
-    }
 
     // Call the ADK service (patientId can be undefined for general queries)
     const response = await adkClient.chat(patientId, message.trim(), conversationHistory);
@@ -90,7 +293,6 @@ export const handleAnalyzeRequest = async (req: Request, res: Response): Promise
       return;
     }
 
-    console.log(`[AI Controller] Analysis request for patient ${patientId}, timeframe: ${timeframe}`);
 
     // Fetch recent conversations from Supabase
     const daysAgo = timeframe === '30days' ? 30 : 7;
@@ -152,7 +354,6 @@ export const handleOptimizeReminder = async (req: Request, res: Response): Promi
       return;
     }
 
-    console.log(`[AI Controller] Optimize reminder for patient ${patientId}, type: ${reminderType}`);
 
     // Call the ADK service
     const response = await adkClient.optimizeReminder(patientId, reminderType, currentSchedule);
@@ -169,8 +370,6 @@ export const handleOptimizeReminder = async (req: Request, res: Response): Promi
  */
 export const checkADKHealth = async (req: Request, res: Response): Promise<void> => {
   try {
-    console.log('[AI Controller] Health check request');
-
     const health = await adkClient.healthCheck();
 
     res.json({
@@ -180,7 +379,7 @@ export const checkADKHealth = async (req: Request, res: Response): Promise<void>
       version: health.version,
       timestamp: health.timestamp || new Date().toISOString()
     });
-  } catch (error) {
+  } catch {
     // Even if ADK is down, return a structured response
     res.json({
       adkStatus: 'down',
@@ -197,8 +396,6 @@ export const checkADKHealth = async (req: Request, res: Response): Promise<void>
  */
 export const getAgentsStatus = async (req: Request, res: Response): Promise<void> => {
   try {
-    console.log('[AI Controller] Agents status request');
-
     const status = await adkClient.getAgentsStatus();
 
     res.json(status);

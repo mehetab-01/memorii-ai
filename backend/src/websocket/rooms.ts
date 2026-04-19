@@ -30,54 +30,42 @@ export function getDashboardRoom(): string {
  * Join patient-specific room
  */
 export function joinPatientRoom(socket: Socket, patientId: string): void {
-  const room = getPatientRoom(patientId);
-  socket.join(room);
-  console.log(`[Socket ${socket.id}] Joined patient room: ${room}`);
+  socket.join(getPatientRoom(patientId));
 }
 
 /**
  * Leave patient-specific room
  */
 export function leavePatientRoom(socket: Socket, patientId: string): void {
-  const room = getPatientRoom(patientId);
-  socket.leave(room);
-  console.log(`[Socket ${socket.id}] Left patient room: ${room}`);
+  socket.leave(getPatientRoom(patientId));
 }
 
 /**
  * Join caregiver-specific room
  */
 export function joinCaregiverRoom(socket: Socket, caregiverId: string): void {
-  const room = getCaregiverRoom(caregiverId);
-  socket.join(room);
-  console.log(`[Socket ${socket.id}] Joined caregiver room: ${room}`);
+  socket.join(getCaregiverRoom(caregiverId));
 }
 
 /**
  * Leave caregiver-specific room
  */
 export function leaveCaregiverRoom(socket: Socket, caregiverId: string): void {
-  const room = getCaregiverRoom(caregiverId);
-  socket.leave(room);
-  console.log(`[Socket ${socket.id}] Left caregiver room: ${room}`);
+  socket.leave(getCaregiverRoom(caregiverId));
 }
 
 /**
  * Join dashboard room (all caregivers see updates)
  */
 export function joinDashboardRoom(socket: Socket): void {
-  const room = getDashboardRoom();
-  socket.join(room);
-  console.log(`[Socket ${socket.id}] Joined dashboard room: ${room}`);
+  socket.join(getDashboardRoom());
 }
 
 /**
  * Leave dashboard room
  */
 export function leaveDashboardRoom(socket: Socket): void {
-  const room = getDashboardRoom();
-  socket.leave(room);
-  console.log(`[Socket ${socket.id}] Left dashboard room: ${room}`);
+  socket.leave(getDashboardRoom());
 }
 
 /**

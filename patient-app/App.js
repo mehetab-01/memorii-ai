@@ -1,118 +1,174 @@
+/**
+ * Memorii Patient App — Entry Point
+ *
+ * Changes from original:
+ * - Swapped Inter → Nunito (warm, rounded font for elderly users)
+ * - Added Splash screen as the initial route (handles auth check itself)
+ * - Added Restyle ThemeProvider wrapping entire app
+ * - Added SafeAreaProvider for useSafeAreaInsets in Toast/OfflineBanner
+ * - Added custom Stack transitions per Phase 5 spec
+ * - Removed auth check from App.js (SplashScreen handles it)
+ */
 import 'react-native-gesture-handler';
-import React, { useState, useEffect } from 'react';
-import { ActivityIndicator, View, StyleSheet, Text } from 'react-native';
+import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import * as SecureStore from 'expo-secure-store';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import { ThemeProvider as RestyleProvider } from '@shopify/restyle';
+import {
+  useFonts,
+  Nunito_400Regular,
+  Nunito_600SemiBold,
+  Nunito_700Bold,
+  Nunito_800ExtraBold,
+} from '@expo-google-fonts/nunito';
 
-// Import Screens
-import SetupScreen from './screens/SetupScreen';
-import DashboardScreen from './screens/DashboardScreen';
+// Restyle themes
+import theme from './src/theme/theme';
+import darkTheme from './src/theme/darkTheme';
+
+// Legacy ThemeProvider (useTheme hook used throughout app)
+import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
+
+// Screens
+import SplashScreen from './src/screens/SplashScreen';
+import SetupScreen from './src/screens/SetupScreen';
+import DashboardScreen from './src/screens/DashboardScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
+
+// Loading screen (used while fonts load)
+import LoadingScreen from './src/components/common/LoadingScreen';
+
+// Storage init — preloads AsyncStorage into memory cache
+import { initStorage } from './src/storage';
 
 const Stack = createStackNavigator();
 
-export default function App() {
-  const [isLoading, setIsLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-
-  useEffect(() => {
-    checkAuthStatus();
-  }, []);
-
-  const checkAuthStatus = async () => {
-    try {
-      // Check SecureStore for session token
-      const sessionToken = await SecureStore.getItemAsync('user_session_token');
-      
-      if (sessionToken) {
-        // Token exists - user is authenticated
-        console.log('✅ User authenticated with token:', sessionToken);
-        setIsAuthenticated(true);
-      } else {
-        // DEV MODE: Skip QR setup and go directly to Dashboard
-        // Remove this block when QR backend is ready
-        console.log('🔧 DEV MODE: Skipping QR setup, setting mock credentials');
-        await SecureStore.setItemAsync('user_session_token', 'dev-auto-skip-token');
-        await SecureStore.setItemAsync('patient_name', 'John Anderson');
-        await SecureStore.setItemAsync('caretaker_code', 'DEV123');
-        setIsAuthenticated(true);
-        
-        // PRODUCTION: Uncomment below and remove DEV block above
-        // console.log('❌ No session token found - showing setup screen');
-        // setIsAuthenticated(false);
-      }
-    } catch (error) {
-      console.error('Error checking auth status:', error);
-      setIsAuthenticated(false);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <LinearGradient
-          colors={['#667EEA', '#764BA2']}
-          style={styles.loadingGradient}
-        >
-          <Ionicons name="heart-circle" size={80} color="#FFFFFF" />
-          <ActivityIndicator 
-            size="large" 
-            color="#FFFFFF" 
-            style={styles.loader} 
-          />
-          <Text style={styles.loadingText}>Memorii</Text>
-          <Text style={styles.loadingSubtext}>Checking authentication...</Text>
-        </LinearGradient>
-      </View>
-    );
-  }
+// Stack navigator wrapped inside ThemeProvider so it can read isDarkMode
+function AppNavigator() {
+  const { isDarkMode } = useTheme();
 
   return (
     <>
-      <StatusBar style="auto" />
+      <StatusBar style={isDarkMode ? 'light' : 'dark'} />
       <NavigationContainer>
         <Stack.Navigator
-          initialRouteName={isAuthenticated ? 'Dashboard' : 'Setup'}
+          initialRouteName="Splash"
           screenOptions={{
             headerShown: false,
             gestureEnabled: false,
+            cardStyle: { backgroundColor: 'transparent' },
           }}
         >
-          <Stack.Screen name="Setup" component={SetupScreen} />
-          <Stack.Screen name="Dashboard" component={DashboardScreen} />
+          {/* Splash: fade transition */}
+          <Stack.Screen
+            name="Splash"
+            component={SplashScreen}
+            options={{
+              cardStyleInterpolator: ({ current }) => ({
+                cardStyle: { opacity: current.progress },
+              }),
+            }}
+          />
+
+          {/* Setup → Dashboard: fade + slide up */}
+          <Stack.Screen
+            name="Setup"
+            component={SetupScreen}
+            options={{
+              cardStyleInterpolator: ({ current, next, layouts }) => ({
+                cardStyle: {
+                  opacity: current.progress,
+                  transform: [
+                    {
+                      translateY: current.progress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [layouts.screen.height * 0.05, 0],
+                      }),
+                    },
+                  ],
+                },
+                overlayStyle: { opacity: next ? next.progress.interpolate({ inputRange: [0, 1], outputRange: [0, 0.4] }) : 0 },
+              }),
+              transitionSpec: {
+                open: { animation: 'timing', config: { duration: 300 } },
+                close: { animation: 'timing', config: { duration: 250 } },
+              },
+            }}
+          />
+
+          {/* Dashboard: fade */}
+          <Stack.Screen
+            name="Dashboard"
+            component={DashboardScreen}
+            options={{
+              cardStyleInterpolator: ({ current }) => ({
+                cardStyle: { opacity: current.progress },
+              }),
+              transitionSpec: {
+                open: { animation: 'timing', config: { duration: 300 } },
+                close: { animation: 'timing', config: { duration: 250 } },
+              },
+            }}
+          />
+
+          {/* Settings: slide from right */}
+          <Stack.Screen
+            name="Settings"
+            component={SettingsScreen}
+            options={{
+              cardStyleInterpolator: ({ current, layouts }) => ({
+                cardStyle: {
+                  transform: [
+                    {
+                      translateX: current.progress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [layouts.screen.width, 0],
+                      }),
+                    },
+                  ],
+                },
+              }),
+              transitionSpec: {
+                open: { animation: 'timing', config: { duration: 250 } },
+                close: { animation: 'timing', config: { duration: 200 } },
+              },
+              gestureEnabled: true,
+            }}
+          />
         </Stack.Navigator>
       </NavigationContainer>
     </>
   );
 }
 
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-  },
-  loadingGradient: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loader: {
-    marginTop: 24,
-  },
-  loadingText: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginTop: 24,
-    letterSpacing: 1,
-  },
-  loadingSubtext: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginTop: 8,
-  },
-});
+export default function App() {
+  React.useEffect(() => { initStorage(); }, []);
+
+  const [fontsLoaded] = useFonts({
+    Nunito_400Regular,
+    Nunito_600SemiBold,
+    Nunito_700Bold,
+    Nunito_800ExtraBold,
+  });
+
+  if (!fontsLoaded) {
+    return <LoadingScreen message="Starting Memorii..." />;
+  }
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        {/* Legacy theme context (useTheme hook + colors) */}
+        <ThemeProvider>
+          {/* Restyle provider — theme tokens for Box/Text components */}
+          <RestyleProvider theme={theme}>
+            <AppNavigator />
+          </RestyleProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
+  );
+}

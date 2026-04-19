@@ -7,13 +7,11 @@ import { Server, Socket } from 'socket.io';
 import { Server as HTTPServer } from 'http';
 import supabase from '../config/supabase';
 import { broadcaster } from './broadcaster';
+import { onlinePatients } from './onlinePatients';
 import {
   joinPatientRoom,
   joinDashboardRoom,
   joinCaregiverRoom,
-  leavePatientRoom,
-  leaveCaregiverRoom,
-  leaveDashboardRoom,
 } from './rooms';
 import {
   MOBILE_EVENTS,
@@ -54,8 +52,6 @@ class SocketServer {
 
     // Initialize broadcaster with Socket.io instance
     broadcaster.setIO(this.io);
-
-    console.log('[WebSocket] Server initialized');
   }
 
   /**
@@ -70,7 +66,6 @@ class SocketServer {
    */
   private setupEventHandlers(): void {
     this.io.on('connection', (socket: Socket) => {
-      console.log(`[WebSocket] Client connected: ${socket.id}`);
 
       // Mobile app events
       socket.on(MOBILE_EVENTS.CONNECT, (data: MobileConnectData) => this.handleMobileConnect(socket, data));
@@ -100,7 +95,6 @@ class SocketServer {
   // ============================================
 
   private async handleMobileConnect(socket: Socket, data: MobileConnectData): Promise<void> {
-    console.log(`[Mobile] Patient ${data.patientId} connected (${data.deviceType})`);
 
     // Join patient-specific room
     joinPatientRoom(socket, data.patientId);
@@ -110,6 +104,13 @@ class SocketServer {
       this.patientSockets.set(data.patientId, new Set());
     }
     this.patientSockets.get(data.patientId)!.add(socket.id);
+
+    // Track in shared online map
+    onlinePatients.set(data.patientId, {
+      socketId: socket.id,
+      connectedAt: new Date().toISOString(),
+      deviceId: data.deviceId,
+    });
 
     // Store patient ID in socket data
     socket.data.patientId = data.patientId;
@@ -130,7 +131,6 @@ class SocketServer {
   }
 
   private async handleMobileMessage(socket: Socket, data: MobileMessageData): Promise<void> {
-    console.log(`[Mobile] Message from patient ${data.patientId}: ${data.message.substring(0, 50)}...`);
 
     try {
       // 1. Save conversation to Supabase
@@ -167,7 +167,6 @@ class SocketServer {
   }
 
   private async handleTaskComplete(socket: Socket, data: TaskCompleteData): Promise<void> {
-    console.log(`[Mobile] Task ${data.taskId} completed by patient ${data.patientId}`);
 
     try {
       // Update task in database
@@ -201,7 +200,6 @@ class SocketServer {
   }
 
   private async handleLocationUpdate(socket: Socket, data: LocationUpdateData): Promise<void> {
-    console.log(`[Mobile] Location update from patient ${data.patientId}`);
 
     try {
       // Update patient location in database
@@ -226,7 +224,6 @@ class SocketServer {
   }
 
   private async handleDistressSignal(socket: Socket, data: DistressSignalData): Promise<void> {
-    console.log(`[Mobile] ⚠️ DISTRESS SIGNAL from patient ${data.patientId}: ${data.type}`);
 
     try {
       // Create urgent alert
@@ -270,6 +267,12 @@ class SocketServer {
   }
 
   private async handleHeartbeat(socket: Socket, data: HeartbeatData): Promise<void> {
+    // Update shared online map
+    const entry = onlinePatients.get(data.patientId);
+    if (entry) {
+      entry.lastHeartbeat = data.timestamp;
+      onlinePatients.set(data.patientId, entry);
+    }
     // Update last_seen timestamp (silently, no broadcast needed)
     await supabase
       .from('patients')
@@ -278,7 +281,6 @@ class SocketServer {
   }
 
   private async handleMedicationTaken(socket: Socket, data: MedicationTakenData): Promise<void> {
-    console.log(`[Mobile] Medication taken by patient ${data.patientId}`);
 
     try {
       // Log medication adherence
@@ -311,7 +313,6 @@ class SocketServer {
   // ============================================
 
   private handleCaregiverConnect(socket: Socket, data: CaregiverConnectData): void {
-    console.log(`[Dashboard] Caregiver ${data.caregiverId} connected`);
 
     // Join dashboard room (all caregivers)
     joinDashboardRoom(socket);
@@ -330,7 +331,6 @@ class SocketServer {
   }
 
   private handleCaregiverSendMessage(socket: Socket, data: CaregiverSendMessageData): void {
-    console.log(`[Dashboard] Message from caregiver to patient ${data.patientId}`);
 
     // Send message to patient's mobile app
     broadcaster.sendFamilyMessageToPatient(data.patientId, {
@@ -342,7 +342,6 @@ class SocketServer {
   }
 
   private async handleCaregiverUpdateReminder(socket: Socket, data: CaregiverUpdateReminderData): Promise<void> {
-    console.log(`[Dashboard] Reminder ${data.reminderId} updated by caregiver`);
 
     try {
       // Update reminder in database
@@ -375,7 +374,6 @@ class SocketServer {
   // ============================================
 
   private handleADKResponseGenerated(socket: Socket, data: ADKResponseGeneratedData): void {
-    console.log(`[ADK] AI response generated for patient ${data.patientId}`);
 
     // Send AI response to patient
     broadcaster.sendAIResponseToPatient(data.patientId, {
@@ -400,7 +398,6 @@ class SocketServer {
   }
 
   private handleADKConcernDetected(socket: Socket, data: ADKConcernDetectedData): void {
-    console.log(`[ADK] ⚠️ Concern detected for patient ${data.patientId}: ${data.concernType}`);
 
     // Create alert and notify dashboard
     broadcaster.notifyAlertCreated({
@@ -418,7 +415,6 @@ class SocketServer {
   // ============================================
 
   private async handleDisconnect(socket: Socket): Promise<void> {
-    console.log(`[WebSocket] Client disconnected: ${socket.id}`);
 
     // Handle patient disconnect
     if (socket.data.patientId) {
@@ -431,6 +427,7 @@ class SocketServer {
         // If this was the last socket for this patient
         if (sockets.size === 0) {
           this.patientSockets.delete(patientId);
+          onlinePatients.delete(patientId);
 
           // Notify dashboard that patient is offline
           broadcaster.notifyPatientOnlineStatus({

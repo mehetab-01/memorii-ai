@@ -8,7 +8,6 @@ dotenv.config();
 
 // Import WebSocket server
 import SocketServer from './websocket/socketServer';
-import { broadcaster } from './websocket/broadcaster';
 
 // Import routes
 import patientRoutes from './routes/patients';
@@ -68,14 +67,13 @@ app.use((req: Request, res: Response) => {
 });
 
 // Global error handler
-app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error('Unhandled error:', err);
   res.status(500).json({ error: 'Internal Server Error', message: err.message });
 });
 
 // Initialize WebSocket server
-const socketServer = new SocketServer(httpServer);
-console.log('[WebSocket] Real-time connectivity enabled');
+new SocketServer(httpServer);
 
 // Start server (use httpServer instead of app for WebSocket support)
 httpServer.listen(PORT, () => {

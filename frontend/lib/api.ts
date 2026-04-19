@@ -12,6 +12,8 @@ export interface Patient {
   location: string;
   last_checkin: string;
   safety_status: 'safe' | 'warning' | 'danger';
+  geofence_radius: number;
+  emergency_contact: string | null;
   created_at: string;
   updated_at: string;
   medications?: Medication[];
@@ -166,6 +168,18 @@ export const patientApi = {
     fetchApi<Patient>(`/patients/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
+    }),
+
+  updateGeofenceRadius: (id: string, geofence_radius: number) =>
+    fetchApi<Patient>(`/patients/${id}/geofence-radius`, {
+      method: 'PATCH',
+      body: JSON.stringify({ geofence_radius }),
+    }),
+
+  updateEmergencyContact: (id: string, emergency_contact: string | null) =>
+    fetchApi<Patient>(`/patients/${id}/emergency-contact`, {
+      method: 'PATCH',
+      body: JSON.stringify({ emergency_contact }),
     }),
 
   delete: (id: string) =>

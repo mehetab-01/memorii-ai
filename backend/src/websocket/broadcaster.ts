@@ -6,7 +6,6 @@
 import { Server } from 'socket.io';
 import {
   getPatientRoom,
-  getCaregiverRoom,
   getDashboardRoom,
 } from './rooms';
 import {
@@ -31,7 +30,6 @@ class Broadcaster {
    */
   setIO(io: Server): void {
     this.io = io;
-    console.log('[Broadcaster] Initialized with Socket.io server');
   }
 
   /**
@@ -56,7 +54,6 @@ class Broadcaster {
 
     const room = getDashboardRoom();
     this.io.to(room).emit(SERVER_TO_DASHBOARD_EVENTS.PATIENT_ACTIVITY, activity);
-    console.log(`[Broadcaster] Patient activity sent to dashboard: ${activity.activityType}`);
   }
 
   /**
@@ -68,7 +65,6 @@ class Broadcaster {
 
     const room = getDashboardRoom();
     this.io.to(room).emit(SERVER_TO_DASHBOARD_EVENTS.PATIENT_STATUS_CHANGE, statusChange);
-    console.log(`[Broadcaster] Patient status change sent to dashboard`);
   }
 
   /**
@@ -80,7 +76,6 @@ class Broadcaster {
 
     const room = getDashboardRoom();
     this.io.to(room).emit(SERVER_TO_DASHBOARD_EVENTS.ALERT_CREATED, alert);
-    console.log(`[Broadcaster] Alert sent to dashboard: ${alert.type} (${alert.priority})`);
   }
 
   /**
@@ -92,7 +87,6 @@ class Broadcaster {
 
     const room = getDashboardRoom();
     this.io.to(room).emit(SERVER_TO_DASHBOARD_EVENTS.CONVERSATION_LOGGED, conversation);
-    console.log(`[Broadcaster] Conversation logged sent to dashboard`);
   }
 
   /**
@@ -104,7 +98,6 @@ class Broadcaster {
 
     const room = getDashboardRoom();
     this.io.to(room).emit(SERVER_TO_DASHBOARD_EVENTS.PATIENT_ONLINE_STATUS, status);
-    console.log(`[Broadcaster] Patient online status: ${status.patientId} - ${status.online ? 'online' : 'offline'}`);
   }
 
   // ============================================
@@ -120,7 +113,6 @@ class Broadcaster {
 
     const room = getPatientRoom(patientId);
     this.io.to(room).emit(SERVER_TO_MOBILE_EVENTS.REMINDER_DUE, reminder);
-    console.log(`[Broadcaster] Reminder sent to patient ${patientId}: ${reminder.title}`);
   }
 
   /**
@@ -132,7 +124,6 @@ class Broadcaster {
 
     const room = getPatientRoom(patientId);
     this.io.to(room).emit(SERVER_TO_MOBILE_EVENTS.AI_RESPONSE, aiResponse);
-    console.log(`[Broadcaster] AI response sent to patient ${patientId}`);
   }
 
   /**
@@ -144,7 +135,6 @@ class Broadcaster {
 
     const room = getPatientRoom(patientId);
     this.io.to(room).emit(SERVER_TO_MOBILE_EVENTS.MEDICATION_REMINDER, medication);
-    console.log(`[Broadcaster] Medication reminder sent to patient ${patientId}: ${medication.name}`);
   }
 
   /**
@@ -156,7 +146,6 @@ class Broadcaster {
 
     const room = getPatientRoom(patientId);
     this.io.to(room).emit(SERVER_TO_MOBILE_EVENTS.FAMILY_MESSAGE, message);
-    console.log(`[Broadcaster] Family message sent to patient ${patientId} from ${message.fromName}`);
   }
 
   /**
@@ -172,7 +161,6 @@ class Broadcaster {
       timestamp: new Date().toISOString(),
       message: 'Your schedule has been updated',
     });
-    console.log(`[Broadcaster] Schedule update notification sent to patient ${patientId}`);
   }
 
   /**
@@ -188,7 +176,6 @@ class Broadcaster {
       updates,
       timestamp: new Date().toISOString(),
     });
-    console.log(`[Broadcaster] Patient update notification sent to patient ${patientId}`);
   }
 
   // ============================================

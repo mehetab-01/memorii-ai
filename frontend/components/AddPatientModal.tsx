@@ -206,12 +206,9 @@ export default function AddPatientModal({
         safety_status: safetyStatus,
       };
 
-      console.log('Creating patient with data:', patientData);
       const patient = await patientApi.create(patientData);
-      console.log('Patient created:', patient);
 
       // Create medications and corresponding reminders
-      console.log('Medications to create:', medications);
       for (const med of medications) {
         const medData: CreateMedicationInput = {
           patient_id: patient.id,
@@ -219,9 +216,7 @@ export default function AddPatientModal({
           dosage: med.dosage,
           status: med.status,
         };
-        console.log('Creating medication:', medData);
-        const result = await medicationApi.create(medData);
-        console.log('Medication created:', result);
+        await medicationApi.create(medData);
 
         // Create a reminder for this medication
         // Parse time from dosage if possible (e.g., "1/day at 10:00am")
@@ -246,12 +241,10 @@ export default function AddPatientModal({
           reminder_type: 'medication',
           due_date: dueDate,
         };
-        console.log('Creating medication reminder:', reminderData);
         await reminderApi.create(reminderData);
       }
 
       // Create daily routines and corresponding tasks
-      console.log('Routines to create:', routines);
       for (const routine of routines) {
         const routineData: CreateDailyRoutineInput = {
           patient_id: patient.id,
@@ -260,9 +253,7 @@ export default function AddPatientModal({
           scheduled_time: routine.scheduled_time,
           description: routine.description,
         };
-        console.log('Creating routine:', routineData);
-        const result = await dailyRoutineApi.create(routineData);
-        console.log('Routine created:', result);
+        await dailyRoutineApi.create(routineData);
 
         // Create a task for this routine
         const today = new Date();
@@ -275,12 +266,10 @@ export default function AddPatientModal({
           reminder_type: 'task',
           due_date: dueDate,
         };
-        console.log('Creating routine task:', taskData);
         await reminderApi.create(taskData);
       }
 
       // Create appointments and corresponding reminders
-      console.log('Appointments to create:', appointments);
       for (const appt of appointments) {
         const apptData: CreateAppointmentInput = {
           patient_id: patient.id,
@@ -292,9 +281,7 @@ export default function AddPatientModal({
           location: appt.location,
           doctor_name: appt.doctor_name,
         };
-        console.log('Creating appointment:', apptData);
-        const result = await appointmentApi.create(apptData);
-        console.log('Appointment created:', result);
+        await appointmentApi.create(apptData);
 
         // Create a reminder for this appointment
         const appointmentReminderData: CreateReminderInput = {
@@ -304,7 +291,6 @@ export default function AddPatientModal({
           reminder_type: 'appointment',
           due_date: `${appt.appointment_date}T${appt.appointment_time}:00`,
         };
-        console.log('Creating appointment reminder:', appointmentReminderData);
         await reminderApi.create(appointmentReminderData);
       }
 

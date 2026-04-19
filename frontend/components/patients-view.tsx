@@ -1,10 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Plus, Search, Filter, Grid, List, AlertCircle, CheckCircle, AlertTriangle } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Plus, Search, Filter, Grid, List, AlertCircle, CheckCircle, AlertTriangle, Smartphone } from 'lucide-react';
 import { patientApi, type Patient } from '@/lib/api';
+import { dashboardSocket } from '@/lib/socketClient';
 import AddPatientModal from './AddPatientModal';
 import PatientDetailModal from './PatientDetailModal';
+import PairingModal from './PairingModal';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+
+interface OnlineEntry {
+  connectedAt: string;
+  lastHeartbeat?: string;
+}
 
 export default function PatientsView() {
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -14,6 +23,8 @@ export default function PatientsView() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [pairingPatient, setPairingPatient] = useState<Patient | null>(null);
+  const [onlineMap, setOnlineMap] = useState<Record<string, OnlineEntry>>({});
 
   const fetchPatients = async () => {
     try {
@@ -32,6 +43,35 @@ export default function PatientsView() {
   useEffect(() => {
     fetchPatients();
   }, []);
+
+  // Fetch initial online status
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/patients/online`)
+      .then(r => r.json())
+      .then((data: { online: Array<{ patientId: string; connectedAt: string; lastHeartbeat?: string }> }) => {
+        const map: Record<string, OnlineEntry> = {};
+        data.online.forEach(p => { map[p.patientId] = { connectedAt: p.connectedAt, lastHeartbeat: p.lastHeartbeat }; });
+        setOnlineMap(map);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Subscribe to live online status events
+  const handleOnlineStatus = useCallback((data: { patientId: string; online: boolean; lastSeen?: string }) => {
+    setOnlineMap(prev => {
+      if (data.online) {
+        return { ...prev, [data.patientId]: { connectedAt: new Date().toISOString() } };
+      }
+      const next = { ...prev };
+      delete next[data.patientId];
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    dashboardSocket.on('patient:online_status', handleOnlineStatus);
+    return () => { dashboardSocket.off('patient:online_status', handleOnlineStatus); };
+  }, [handleOnlineStatus]);
 
   const filteredPatients = patients.filter(patient =>
     patient.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -155,44 +195,66 @@ export default function PatientsView() {
       {/* Patient Grid */}
       {!loading && filteredPatients.length > 0 && viewMode === 'grid' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredPatients.map((patient) => (
-            <div 
-              key={patient.id} 
-              onClick={() => setSelectedPatient(patient)}
-              className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer"
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 font-semibold text-lg">
-                    {patient.name.charAt(0).toUpperCase()}
+          {filteredPatients.map((patient) => {
+            const isOnline = !!onlineMap[patient.id];
+            return (
+              <div
+                key={patient.id}
+                onClick={() => setSelectedPatient(patient)}
+                className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 font-semibold text-lg">
+                        {patient.name.charAt(0).toUpperCase()}
+                      </div>
+                      {/* Online dot */}
+                      <span className="absolute -bottom-0.5 -right-0.5">
+                        <span className="relative flex h-3 w-3">
+                          {isOnline && (
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                          )}
+                          <span className={`relative inline-flex rounded-full h-3 w-3 border-2 border-white ${isOnline ? 'bg-green-500' : 'bg-gray-300'}`} />
+                        </span>
+                      </span>
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900">{patient.name}</h3>
+                      <p className="text-sm text-gray-500">Age: {patient.age}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900">{patient.name}</h3>
-                    <p className="text-sm text-gray-500">Age: {patient.age}</p>
-                  </div>
+                  {getSafetyIcon(patient.safety_status)}
                 </div>
-                {getSafetyIcon(patient.safety_status)}
-              </div>
-              <div className="space-y-2">
-                <p className="text-sm text-gray-600">
-                  <span className="font-medium">Diagnosis:</span> {patient.diagnosis}
-                </p>
-                <p className="text-sm text-gray-600">
-                  <span className="font-medium">Location:</span> {patient.location}
-                </p>
-                <div className="flex items-center justify-between pt-2">
-                  <span className={`text-xs px-2 py-1 rounded-full ${getSafetyBadge(patient.safety_status)}`}>
-                    {patient.safety_status.charAt(0).toUpperCase() + patient.safety_status.slice(1)}
-                  </span>
-                  {patient.medications && patient.medications.length > 0 && (
-                    <span className="text-xs text-gray-500">
-                      {patient.medications.length} medication{patient.medications.length !== 1 ? 's' : ''}
+                <div className="space-y-2">
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium">Diagnosis:</span> {patient.diagnosis}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium">Location:</span> {patient.location}
+                  </p>
+                  {/* Online status label */}
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-xs font-medium ${isOnline ? 'text-green-600' : 'text-gray-400'}`}>
+                      {isOnline ? 'Device online' : 'Device offline'}
                     </span>
-                  )}
+                  </div>
+                  <div className="flex items-center justify-between pt-2">
+                    <span className={`text-xs px-2 py-1 rounded-full ${getSafetyBadge(patient.safety_status)}`}>
+                      {patient.safety_status.charAt(0).toUpperCase() + patient.safety_status.slice(1)}
+                    </span>
+                    <button
+                      onClick={e => { e.stopPropagation(); setPairingPatient(patient); }}
+                      className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg border border-blue-200 transition-colors"
+                    >
+                      <Smartphone size={12} />
+                      Connect
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -207,33 +269,56 @@ export default function PatientsView() {
                 <th className="text-left py-3 px-4 font-semibold text-gray-700">Diagnosis</th>
                 <th className="text-left py-3 px-4 font-semibold text-gray-700">Location</th>
                 <th className="text-left py-3 px-4 font-semibold text-gray-700">Status</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-700">Device</th>
               </tr>
             </thead>
             <tbody>
-              {filteredPatients.map((patient) => (
-                <tr 
-                  key={patient.id} 
-                  onClick={() => setSelectedPatient(patient)}
-                  className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
-                >
-                  <td className="py-3 px-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 font-semibold text-sm">
-                        {patient.name.charAt(0).toUpperCase()}
+              {filteredPatients.map((patient) => {
+                const isOnline = !!onlineMap[patient.id];
+                return (
+                  <tr
+                    key={patient.id}
+                    onClick={() => setSelectedPatient(patient)}
+                    className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                  >
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 font-semibold text-sm">
+                            {patient.name.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="absolute -bottom-0.5 -right-0.5">
+                            <span className={`inline-flex rounded-full h-2.5 w-2.5 border border-white ${isOnline ? 'bg-green-500' : 'bg-gray-300'}`} />
+                          </span>
+                        </div>
+                        <span className="font-medium text-gray-900">{patient.name}</span>
                       </div>
-                      <span className="font-medium text-gray-900">{patient.name}</span>
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-gray-600">{patient.age}</td>
-                  <td className="py-3 px-4 text-gray-600">{patient.diagnosis}</td>
-                  <td className="py-3 px-4 text-gray-600">{patient.location}</td>
-                  <td className="py-3 px-4">
-                    <span className={`text-xs px-2 py-1 rounded-full ${getSafetyBadge(patient.safety_status)}`}>
-                      {patient.safety_status.charAt(0).toUpperCase() + patient.safety_status.slice(1)}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="py-3 px-4 text-gray-600">{patient.age}</td>
+                    <td className="py-3 px-4 text-gray-600">{patient.diagnosis}</td>
+                    <td className="py-3 px-4 text-gray-600">{patient.location}</td>
+                    <td className="py-3 px-4">
+                      <span className={`text-xs px-2 py-1 rounded-full ${getSafetyBadge(patient.safety_status)}`}>
+                        {patient.safety_status.charAt(0).toUpperCase() + patient.safety_status.slice(1)}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs ${isOnline ? 'text-green-600' : 'text-gray-400'}`}>
+                          {isOnline ? 'Online' : 'Offline'}
+                        </span>
+                        <button
+                          onClick={e => { e.stopPropagation(); setPairingPatient(patient); }}
+                          className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 rounded border border-blue-200 transition-colors"
+                        >
+                          <Smartphone size={10} />
+                          Connect
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -257,6 +342,14 @@ export default function PatientsView() {
           onUpdate={() => {
             fetchPatients();
           }}
+        />
+      )}
+
+      {/* Pairing Modal */}
+      {pairingPatient && (
+        <PairingModal
+          patient={pairingPatient}
+          onClose={() => setPairingPatient(null)}
         />
       )}
     </div>
