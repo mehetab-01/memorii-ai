@@ -44,7 +44,7 @@ function parseVoiceInput(text: string): ExtractedData | null {
     type = 'medication';
   } else if (lowerText.includes('appointment') || lowerText.includes('doctor') || lowerText.includes('visit')) {
     type = 'appointment';
-  } else if (lowerText.includes('task')) {
+  } else if (lowerText.includes('task') || lowerText.includes('walk') || lowerText.includes('exercise') || lowerText.includes('activity') || lowerText.includes('gym') || lowerText.includes('eat') || lowerText.includes('drink') || lowerText.includes('water')) {
     type = 'task';
   } else if (lowerText.includes('reminder')) {
     type = 'reminder';
@@ -349,24 +349,26 @@ export default function AIChatModal({ open, onOpenChange }: AIChatModalProps) {
       // Create the due date
       const dueDate = `${pendingData.date || new Date().toISOString().split('T')[0]}T${pendingData.time || '12:00'}:00`;
       
-      // Create the reminder
+      // Determine reminder type — task for activities, medication, appointment, etc.
+      const reminderType: 'medication' | 'appointment' | 'task' | 'supplies' =
+        pendingData.type === 'medication' ? 'medication' :
+        pendingData.type === 'appointment' ? 'appointment' : 'task';
+
+      // Create the reminder (backend will emit task:added socket event to patient app)
       await reminderApi.create({
         patient_id: matchingPatient.id,
-        title: pendingData.title || 'Reminder',
-        description: `Created via voice command`,
-        reminder_type: pendingData.type === 'medication' ? 'medication' : 
-                       pendingData.type === 'appointment' ? 'appointment' : 
-                       pendingData.type === 'task' ? 'task' : 'task',
+        title: pendingData.title || 'New Task',
+        description: `Added by caretaker via AI assistant`,
+        reminder_type: reminderType,
         due_date: dueDate,
       });
       
       const successMsg: Message = {
         id: Date.now().toString(),
-        text: `✅ **${pendingData.type?.charAt(0).toUpperCase()}${pendingData.type?.slice(1)} Created!**\n\n` +
-              `📝 ${pendingData.title}\n` +
-              `👤 For ${matchingPatient.name}\n` +
-              `🕐 At ${pendingData.time}\n\n` +
-              `The ${pendingData.type} has been added and the patient app will be notified.`,
+        text: `✅ **Task Added to ${matchingPatient.name}'s Plan!**\n\n` +
+              `📋 ${pendingData.title}\n` +
+              `🕒 Scheduled for ${pendingData.time || 'today'}\n\n` +
+              `📱 **${matchingPatient.name}'s app has been notified** — the task will appear in their "Today's Schedule" section immediately.`,
         sender: 'ai',
         timestamp: new Date(),
       };

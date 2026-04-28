@@ -5,6 +5,7 @@
 
 import io from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
 // Backend WebSocket URL
@@ -14,7 +15,7 @@ const SOCKET_URL = __DEV__
   ? Platform.OS === 'ios'
     ? 'http://localhost:8000'  // iOS Simulator
     : 'http://10.0.2.2:8000'    // Android Emulator
-  : 'https://your-production-url.com';
+  : 'https://memorii-backend.onrender.com'; // Production backend
 
 class SocketService {
   constructor() {
@@ -30,8 +31,14 @@ class SocketService {
    */
   async initialize() {
     try {
-      // Get patient ID from storage
-      const patientId = await AsyncStorage.getItem('patientId');
+      // Get patient ID from SecureStore (where SetupScreen stores it as 'patient_id')
+      let patientId = await SecureStore.getItemAsync('patient_id');
+      
+      // Fallback: also check AsyncStorage for backwards compatibility
+      if (!patientId) {
+        patientId = await AsyncStorage.getItem('patientId');
+      }
+      
       if (!patientId) {
         console.log('[Socket] No patient ID found, skipping connection');
         return;
@@ -95,6 +102,7 @@ class SocketService {
     this.socket.on('family:message', (data) => this.handleFamilyMessage(data));
     this.socket.on('schedule:updated', (data) => this.handleScheduleUpdated(data));
     this.socket.on('patient:updated', (data) => this.handlePatientUpdated(data));
+    this.socket.on('task:added', (data) => this.handleTaskAdded(data));
     this.socket.on('error', (data) => this.handleError(data));
   }
 
@@ -243,8 +251,13 @@ class SocketService {
   }
 
   handleScheduleUpdated(data) {
-    console.log('[Socket] Schedule updated:', data.message);
+    console.log('[Socket] Schedule updated:', data.message || 'schedule changed');
     this.notifyListeners('schedule:updated', data);
+  }
+
+  handleTaskAdded(data) {
+    console.log('[Socket] New task added by caretaker:', data.title);
+    this.notifyListeners('task:added', data);
   }
 
   handlePatientUpdated(data) {

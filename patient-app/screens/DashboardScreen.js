@@ -430,6 +430,19 @@ export default function DashboardScreen({ navigation }) {
       console.log('📅 Schedule updated by caretaker, refreshing...');
       fetchTodaySchedule();
       fetchDailyStats();
+      // Show a brief notification that the plan was updated
+      if (data && data.taskTitle) {
+        setActiveNotification({
+          title: '📋 New Task Added',
+          body: `Your caretaker added: "${data.taskTitle}" to your plan.`,
+          icon: 'checkbox',
+          color: '#8B5CF6',
+          itemId: data.taskId,
+          type: 'task_added',
+        });
+        setShowNotificationPopup(true);
+        Speech.speak(`Your caretaker added a new task: ${data.taskTitle}`, { language: 'en', rate: 0.9 });
+      }
     };
     
     // Listen for patient profile updates from caretaker
@@ -453,10 +466,30 @@ export default function DashboardScreen({ navigation }) {
       setShowNotificationPopup(true);
       Speech.speak(`Reminder: ${data.title}`, { language: 'en', rate: 0.9 });
     };
+
+    // Listen for new tasks added by caretaker via AI chat
+    const handleTaskAdded = (data) => {
+      console.log('✅ New task added by caretaker:', data.title);
+      // Refresh the schedule so the new task appears in "Today's Schedule"
+      fetchTodaySchedule();
+      // Show a persistent in-app notification popup
+      setActiveNotification({
+        title: '📋 New Task Added to Your Plan',
+        body: `${data.title}${data.time ? ' at ' + data.time : ''}${data.description ? '\n' + data.description : ''}`,
+        icon: data.icon || 'checkbox',
+        color: data.color || '#8B5CF6',
+        itemId: data.taskId,
+        type: 'task_added',
+      });
+      setShowNotificationPopup(true);
+      // Voice announcement for the patient
+      Speech.speak(`Your caretaker added a new task: ${data.title}${data.time ? ' at ' + data.time : ''}`, { language: 'en', rate: 0.9 });
+    };
     
     socketService.on('schedule:updated', handleScheduleUpdate);
     socketService.on('patient:updated', handlePatientUpdate);
     socketService.on('reminder:due', handleReminderDue);
+    socketService.on('task:added', handleTaskAdded);
     
     // Refresh data every 5 minutes
     const refreshInterval = setInterval(() => {
@@ -476,6 +509,7 @@ export default function DashboardScreen({ navigation }) {
       socketService.off('schedule:updated', handleScheduleUpdate);
       socketService.off('patient:updated', handlePatientUpdate);
       socketService.off('reminder:due', handleReminderDue);
+      socketService.off('task:added', handleTaskAdded);
     };
   }, []);
 

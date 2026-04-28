@@ -3,6 +3,17 @@ import supabase from '../config/supabase';
 import { CreateReminderInput } from '../types/reminder';
 import { broadcaster } from '../websocket/broadcaster';
 
+// Helper to determine icon and color for task notifications sent to patient app
+const getIconAndColorForBroadcast = (title: string): { icon: string; color: string } => {
+  const t = title.toLowerCase();
+  if (t.includes('walk') || t.includes('exercise') || t.includes('gym')) return { icon: 'walk', color: '#3B82F6' };
+  if (t.includes('medication') || t.includes('medicine') || t.includes('pill')) return { icon: 'medical', color: '#10B981' };
+  if (t.includes('doctor') || t.includes('appointment')) return { icon: 'calendar', color: '#4F46E5' };
+  if (t.includes('breakfast') || t.includes('lunch') || t.includes('dinner') || t.includes('eat') || t.includes('meal')) return { icon: 'restaurant', color: '#F59E0B' };
+  if (t.includes('water') || t.includes('drink') || t.includes('hydrate')) return { icon: 'water', color: '#3B82F6' };
+  return { icon: 'checkbox', color: '#8B5CF6' };
+};
+
 // Helper to get start and end of today
 const getTodayRange = () => {
   const today = new Date();
@@ -129,6 +140,9 @@ export const createReminder = async (req: Request, res: Response): Promise<void>
     const now = new Date();
     const hoursUntilDue = (dueDate.getTime() - now.getTime()) / (1000 * 60 * 60);
 
+    // Format time for display (e.g., "10:00 AM")
+    const timeStr = dueDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
     // If due within 24 hours, send notification to mobile app
     if (hoursUntilDue <= 24 && hoursUntilDue > 0) {
       broadcaster.sendReminderToPatient(data.patient_id, {
@@ -140,8 +154,26 @@ export const createReminder = async (req: Request, res: Response): Promise<void>
       });
     }
 
+    // For task-type reminders (added via AI chat), send a dedicated task:added event
+    // This gives the patient app a rich notification with all task details
+    if (data.reminder_type === 'task') {
+      const { icon, color } = getIconAndColorForBroadcast(data.title);
+      broadcaster.sendTaskAddedToPatient(data.patient_id, {
+        taskId: data.id,
+        title: data.title,
+        time: timeStr,
+        description: data.description || undefined,
+        icon,
+        color,
+      });
+    }
+
     // Always notify patient app that schedule was updated so they can refresh
-    broadcaster.notifyScheduleUpdated(data.patient_id);
+    broadcaster.notifyScheduleUpdated(data.patient_id, {
+      taskId: data.id,
+      taskTitle: data.title,
+      taskTime: timeStr,
+    });
 
     res.status(201).json(data);
   } catch (err) {

@@ -151,7 +151,7 @@ class Broadcaster {
   /**
    * Notify patient mobile app that schedule has been updated
    */
-  notifyScheduleUpdated(patientId: string): void {
+  notifyScheduleUpdated(patientId: string, taskInfo?: { taskId?: string; taskTitle?: string; taskTime?: string }): void {
     this.ensureInitialized();
     if (!this.io) return;
 
@@ -160,6 +160,24 @@ class Broadcaster {
       patientId,
       timestamp: new Date().toISOString(),
       message: 'Your schedule has been updated',
+      ...(taskInfo || {}),
+    });
+  }
+
+  /**
+   * Send task:added event to patient mobile app when caretaker adds a task via AI
+   */
+  sendTaskAddedToPatient(
+    patientId: string,
+    task: { taskId: string; title: string; time?: string; description?: string; icon?: string; color?: string }
+  ): void {
+    this.ensureInitialized();
+    if (!this.io) return;
+
+    const room = getPatientRoom(patientId);
+    this.io.to(room).emit(SERVER_TO_MOBILE_EVENTS.TASK_ADDED, {
+      ...task,
+      timestamp: new Date().toISOString(),
     });
   }
 
