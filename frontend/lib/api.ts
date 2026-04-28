@@ -16,6 +16,8 @@ export interface Patient {
   emergency_contact: string | null;
   created_at: string;
   updated_at: string;
+  last_location?: { latitude: number; longitude: number; accuracy?: number } | null;
+  last_location_update?: string | null;
   medications?: Medication[];
   daily_routines?: DailyRoutine[];
   appointments?: Appointment[];

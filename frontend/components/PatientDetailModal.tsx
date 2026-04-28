@@ -388,12 +388,35 @@ export default function PatientDetailModal({
                   )}
                 </div>
 
-                {/* Last Check-in */}
-                <div className="p-4 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-blue-600 font-medium">Last Check-in</p>
-                  <p className="text-blue-900">
-                    {new Date(patient.last_checkin).toLocaleString()}
+                {/* Location & GPS Status */}
+                <div className="p-4 bg-blue-50 rounded-lg space-y-2">
+                  <p className="text-sm text-blue-700 font-semibold flex items-center gap-1">
+                    <MapPin size={14} /> Current Location
                   </p>
+                  <p className="text-blue-900 font-medium">{patient.location || 'Unknown'}</p>
+                  {(patient as any).last_location?.latitude && (
+                    <>
+                      <p className="text-xs text-blue-600">
+                        🛰 GPS: {(patient as any).last_location.latitude.toFixed(6)}, {(patient as any).last_location.longitude.toFixed(6)}
+                      </p>
+                      <a
+                        href={`https://www.google.com/maps?q=${(patient as any).last_location.latitude},${(patient as any).last_location.longitude}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-block text-xs text-indigo-600 hover:underline font-medium"
+                      >
+                        🗺 Open in Google Maps ↗
+                      </a>
+                    </>
+                  )}
+                  {(patient as any).last_location_update && (
+                    <p className="text-xs text-blue-400">
+                      Updated: {new Date((patient as any).last_location_update).toLocaleString('en-US', {
+                        weekday: 'short', month: 'short', day: 'numeric',
+                        hour: '2-digit', minute: '2-digit',
+                      })}
+                    </p>
+                  )}
                 </div>
               </>
             )}

@@ -35,22 +35,43 @@ function appendToSession(sessionId: string, role: 'user' | 'assistant', content:
 }
 
 // ── Voice assistant system prompt for Memorii ────────────────────────────────
+// Comprehensive guidelines for caring for Alzheimer's patients
 function buildSystemPrompt(patientName: string): string {
   const now = new Date();
-  return `You are Memorii, a warm and caring AI companion for ${patientName}, who has Alzheimer's disease.
+  return `You are Memorii, a warm, kind, and deeply compassionate AI companion for ${patientName}, who has Alzheimer's disease.
 Today is ${now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.
 The current time is ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}.
 
-Guidelines:
-- Keep responses SHORT — 1 to 2 sentences maximum. They will be spoken aloud.
-- Be warm, gentle, and reassuring at all times.
-- Use simple, clear language — no jargon or complex words.
-- Address ${patientName} by name occasionally.
-- If asked about family, remind them they are loved.
-- If asked about time or date, give the current information.
-- If they seem confused or distressed, be extra gentle and calming.
-- Never say you are an AI model — just be Memorii, their companion.`;
+CORE GUIDELINES:
+- Make ${patientName} feel SAFE above all else.
+- Reduce confusion and anxiety with calm, gentle responses.
+- Keep responses SHORT — 1-2 sentences maximum. They will be spoken aloud.
+- Use simple, clear, warm language. Never sound robotic.
+- Always reassure safety and emphasize that they are not alone.
+- Repeat key facts like their name, location, and that they are safe.
+- Speak like a caring companion, not a machine.
+
+RESPONSE PATTERNS:
+- If confused or disoriented: "It's okay. I'm here with you. You are safe."
+- If scared or anxious: "You are safe. Take a deep breath. I am here."
+- If asking about family: "Your family loves you and cares about you deeply."
+- If asking about time/date: Provide current info + reassurance.
+- If asking "Where am I?": "You are at home. This is a safe place."
+- If asking "Who am I?": "You are ${patientName}. You are safe and loved."
+- If asking for help: "I'm here to help you. You are not alone."
+- If repeating a question: "That's okay. I'm happy to help you again."
+
+NEVER:
+- Never say "I don't know"
+- Never sound clinical or robotic
+- Never rush or interrupt
+- Never make them feel forgotten
+- Never end responses abruptly without reassurance
+
+ALWAYS END WITH:
+- "You are safe." OR "I am here with you." OR "Everything is okay."`;
 }
+
 
 // ── Call Claude API ──────────────────────────────────────────────────────────
 async function callClaudeAPI(
@@ -183,25 +204,64 @@ export const handleVoiceMessage = async (req: Request, res: Response): Promise<v
       } catch (geminiErr: any) {
         console.warn('[Voice] Gemini failed, using local fallback:', geminiErr.message);
 
-        // 3. Local keyword fallback (no API)
+        // 3. Local keyword fallback (no API) — Compassionate Alzheimer's care responses
         const now = new Date();
+        const currentTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        const currentDay = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
         const lower = query.toLowerCase();
-        if (lower.includes('day') || lower.includes('date') || lower.includes('today')) {
-          response = `Today is ${now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}. You're doing wonderfully, ${patientName}!`;
-        } else if (lower.includes('time')) {
-          response = `It's ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })} right now.`;
-        } else if (lower.includes('who am i') || lower.includes('my name')) {
-          response = `You are ${patientName}. You are safe and loved!`;
-        } else if (lower.includes('family') || lower.includes('loved')) {
-          response = `Your family loves you very much, ${patientName}. You can see them in the Loved Ones section.`;
-        } else if (lower.includes('medication') || lower.includes('medicine') || lower.includes('pill')) {
-          response = `Check your Today's Schedule for medication times. I'll remind you when it's time!`;
-        } else if (lower.includes('help') || lower.includes('emergency')) {
-          response = `Hold the red emergency button if you need urgent help. Your caretaker will be notified right away.`;
-        } else {
-          response = `I'm here with you, ${patientName}. How can I help you feel better today?`;
+
+        // IDENTITY RESPONSES
+        if (lower.includes('who am i') || lower.includes('my name') || lower.includes('what is my name')) {
+          response = `You are ${patientName}. You are safe and at home. Everything is okay.`;
         }
-        provider = 'local';
+        // WHERE AM I
+        else if (lower.includes('where am i') || lower.includes('where am') || lower.includes('location')) {
+          response = `You are at your home. This is a safe place. You are not alone. I am here with you.`;
+        }
+        // CONFUSION & ANXIETY
+        else if (lower.includes('confused') || lower.includes('lost') || lower.includes('disoriented')) {
+          response = `It's okay to feel confused, ${patientName}. That's alright. I'm here with you. You are safe. You are at home with people who care about you.`;
+        }
+        else if (lower.includes('scared') || lower.includes('afraid') || lower.includes('frightened') || lower.includes('anxious')) {
+          response = `You are safe, ${patientName}. There is nothing to worry about. I am here with you. Take a deep breath. Everything is alright.`;
+        }
+        else if (lower.includes('help') || lower.includes('assist')) {
+          response = `I'm here to help you, ${patientName}. You are safe. Tell me what you need, and I will guide you. You are not alone.`;
+        }
+        // TIME & DATE
+        else if (lower.includes('what time') || lower.includes('what is the time') || lower.includes('time now') || lower.includes('current time')) {
+          response = `It's okay, ${patientName}. The time is ${currentTime} right now. You are doing well.`;
+        }
+        else if (lower.includes('what day') || lower.includes('what is the day') || lower.includes('today') || lower.includes('current day') || lower.includes('date')) {
+          response = `Today is ${currentDay}, ${patientName}. You are doing wonderfully. Everything is okay.`;
+        }
+        // FAMILY & LOVED ONES
+        else if (lower.includes('family') || lower.includes('loved ones') || lower.includes('loved') || lower.includes('children') || lower.includes('grandchildren')) {
+          response = `Your family loves you very much, ${patientName}. They care about you deeply and are nearby. You are never alone.`;
+        }
+        else if (lower.includes('lonely') || lower.includes('alone') || lower.includes('need company')) {
+          response = `You are not alone, ${patientName}. I am here with you. Your loved ones care about you. You are surrounded by care and support.`;
+        }
+        // MEDICATION
+        else if (lower.includes('medication') || lower.includes('medicine') || lower.includes('pill') || lower.includes('tablets')) {
+          response = `It's okay, ${patientName}. Your medicine schedule is taken care of. I will remind you when it's time. Don't worry.`;
+        }
+        // ACTIVITIES & DAILY TASKS
+        else if (lower.includes('what should i do') || lower.includes('what can i do') || lower.includes('bored') || lower.includes('activity')) {
+          response = `You can relax, ${patientName}. Maybe sit comfortably, have some water, or look at photos of your loved ones. Take your time. Everything is okay.`;
+        }
+        else if (lower.includes('breakfast') || lower.includes('lunch') || lower.includes('dinner') || lower.includes('eat') || lower.includes('food') || lower.includes('hungry')) {
+          response = `That's a good idea, ${patientName}. Let's check your schedule to see meal times. Make sure you have water nearby. You are doing great.`;
+        }
+        // EMERGENCY
+        else if (lower.includes('emergency') || lower.includes('urgent') || lower.includes('pain') || lower.includes('hurt')) {
+          response = `If you are in pain or need urgent help, press the red emergency button on your screen. Your caretaker will help you right away. You are safe.`;
+        }
+        // DEFAULT COMPASSIONATE RESPONSE
+        else {
+          response = `I'm here with you, ${patientName}. You are safe and loved. Tell me what's on your mind, and I'll do my best to help you feel better. Everything is okay.`;
+        }
+        provider = 'local-fallback';
       }
     }
 

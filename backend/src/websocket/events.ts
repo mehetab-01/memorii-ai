@@ -208,6 +208,7 @@ export const SERVER_TO_MOBILE_EVENTS = {
   FAMILY_MESSAGE: 'family:message',
   SCHEDULE_UPDATED: 'schedule:updated',
   PATIENT_UPDATED: 'patient:updated',
+  TASK_ADDED: 'task:added',
 } as const;
 
 export const DASHBOARD_EVENTS = {
