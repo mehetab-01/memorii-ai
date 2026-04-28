@@ -113,7 +113,7 @@ export default function AIChatModal({ open, onOpenChange }: AIChatModalProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      text: "Hi! I'm your AI assistant. I can help you create tasks, add notes, check on patients, and more. Try saying something like 'Create a reminder for Mary to take medication at 3pm' or 'Add a task for John to walk at 10am'.",
+      text: "Hi! I'm your AI assistant. I can help you create tasks, add notes, check on patients, and more. Try saying something like 'Give me a status update' or 'Add a task for John to walk at 10am'.",
       sender: 'ai',
       timestamp: new Date(),
     },
@@ -394,7 +394,7 @@ export default function AIChatModal({ open, onOpenChange }: AIChatModalProps) {
   };
 
   const suggestedPrompts = [
-    "Create a reminder for Mary to take medication at 3pm",
+    "Create a reminder for John to take medication at 3pm",
     "Add a task for John to walk at 10am",
     "Show me today's tasks",
     "What medications are due?",
